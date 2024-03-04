@@ -1,0 +1,1 @@
+staq_device_generator graph -n 16 --name "5 qubit IBM QX5 device" -u  1 0 -u 1 2 -u 2 3 -u 3 4 -u 3 14 -u 5 4 -u 6 5 -u 6 7 -u 6 11 -u 7 10 -u 8 7 -u 9 8 -u 9 10 -u 11 10 -u 12 11 -u 12 5 -u 12 13 -u 13 4 -u 13 14 -u 15 14 -u 15 2 -u 15 0
