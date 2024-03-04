@@ -1,0 +1,70 @@
+{
+    "couplings": [
+      {
+        "control": 0,
+        "target": 1
+      },
+      {
+        "control": 0,
+        "target": 2
+      },
+      {
+        "control": 1,
+        "target": 0
+      },
+      {
+        "control": 1,
+        "target": 2
+      },
+      {
+        "control": 2,
+        "target": 0
+      },
+      {
+        "control": 2,
+        "target": 1
+      },
+      {
+        "control": 2,
+        "target": 3
+      },
+      {
+        "control": 2,
+        "target": 4
+      },
+      {
+        "control": 3,
+        "target": 2
+      },
+      {
+        "control": 3,
+        "target": 4
+      },
+      {
+        "control": 4,
+        "target": 2
+      },
+      {
+        "control": 4,
+        "target": 3
+      }
+    ],
+    "name": "5 qubit IBM QX2 device",
+    "qubits": [
+      {
+        "id": 0
+      },
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      },
+      {
+        "id": 3
+      },
+      {
+        "id": 4
+      }
+    ]
+  }
