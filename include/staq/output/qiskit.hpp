@@ -13,37 +13,23 @@ namespace ast = qasmtools::ast;
 
 /** \brief Equivalent QISKIT standard gates for qasm standard gates */
 std::unordered_map<std::string, std::string> qasmstd_to_qiskit{
-    {"id", "circuit.id"},
-    {"x", "circuit.x"},
-    {"y", "circuit.y"},
-    {"z", "circuit.z"},
-    {"h", "circuit.h"},
-    {"s", "circuit.s"},
-    {"sdg", "circuit.sdg"},
-    {"t", "circuit.t"},
-    {"tdg", "circuit.tdg"},
-    {"cx", "circuit.cx"},   // 2 params
-    {"cz", "circuit.cz"},   // 2 params
-    {"ch", "circuit.ch"},   // 2 params
-    {"ccx", "circuit.ccx"}, // 3 params
-    {"rx", "circuit.rx"},   // 2 params
-    {"ry", "circuit.ry"},   // 2 params
-    {"rz", "circuit.rz"},   // 2 params
-    {"u1", "circuit.p"},    // 1 param
-    {"crz", "circuit.crz"}, // 3 params
-    {"cu1", "circuit.cp"}   // 3 params
+    {"id", "ID"},
+    {"x", "X"},
+    {"ecr", "ECR"},
+    {"u1", "RZ"},
+    {"sx", "SX"},
+    {"h", " PROVA "}
 };
 
 /**
  * \class staq::output::QiskitOutputter
- * \brief Visitor for converting a QASM AST to Q#
+ * \brief Visitor for converting a QASM AST to Qiskit
  */
 class QiskitOutputter final : public ast::Visitor {
   public:
     struct config {
-        bool driver = false;
-        std::string ns = "Quantum.staq";
-        std::string opname = "Circuit";
+        bool std_includes =
+            false; // stdgates.qiskit is not supported natively by qiskitc
     };
 
     QiskitOutputter(std::ostream& os) : Visitor(), os_(os) {}
@@ -52,44 +38,56 @@ class QiskitOutputter final : public ast::Visitor {
     ~QiskitOutputter() = default;
 
     void run(ast::Program& prog) {
-        prefix_ = "";
+        circuit_local_ = false;
         ambiguous_ = false;
-        locals_.clear();
+        max_qbit_ = 0;
+        max_cbit_ = 0;
+        globals_.clear();
 
         prog.accept(*this);
     }
 
-    // Variables
-    void visit(ast::VarAccess& ap) { os_ << ap; }
+    // Variables OK
+    void visit(ast::VarAccess& ap) {
+        // Basically here I mess up with parameters of qbits/cbits or pretty much
+        // everything
+        // Assumes the program has been fully desugared, and so plain variable
+        // accesses refer to circuit parameters while dereferences refer to
+        // qubit addresses
+        if (ap.offset()) {
+            // Need to determine if it's a qubit address or classical bit
+            if (globals_.find(ap.var()) != globals_.end()) {
+                auto [r, length] = globals_[ap.var()];
+                os_ << r + *(ap.offset());
+            } else {
+                os_ << ap.var() << "[" << *(ap.offset()) << "]";
+            }
+        } else {
+            os_ << ap.var();
+        }
+    }
 
     // Expressions
+    // Non so sinceramente che cosa faccia questa roba
+    // perché non ho risultati dal controllo di flusso al momento
     void visit(ast::BExpr& expr) {
         auto tmp = ambiguous_;
-
-        if (expr.op() == ast::BinaryOp::Pow) {
-            ambiguous_ = false;
-            // Override since ^ is strictly integral in Q#
-            os_ << "PowD(";
+        ambiguous_ = true;
+        if (tmp) {
+            os_ << "(";
             expr.lexp().accept(*this);
-            os_ << ", ";
+            os_ << expr.op();
             expr.rexp().accept(*this);
+            os_ << ")";
         } else {
-            ambiguous_ = true;
-            if (tmp) {
-                os_ << "(";
-                expr.lexp().accept(*this);
-                os_ << expr.op();
-                expr.rexp().accept(*this);
-                os_ << ")";
-            } else {
-                expr.lexp().accept(*this);
-                os_ << expr.op();
-                expr.rexp().accept(*this);
-            }
+            expr.lexp().accept(*this);
+            os_ << expr.op();
+            expr.rexp().accept(*this);
         }
         ambiguous_ = tmp;
     }
 
+    // We end here just ofr unitary operations
     void visit(ast::UExpr& expr) {
         switch (expr.op()) {
             case ast::UnaryOp::Neg: {
@@ -100,264 +98,201 @@ class QiskitOutputter final : public ast::Visitor {
                 ambiguous_ = tmp;
                 break;
             }
-            case ast::UnaryOp::Sin:
-                os_ << "Sin(";
-                expr.subexp().accept(*this);
-                os_ << ")";
-                break;
-            case ast::UnaryOp::Cos:
-                os_ << "Cos(";
-                expr.subexp().accept(*this);
-                os_ << ")";
-                break;
             case ast::UnaryOp::Tan:
-                os_ << "Tan(";
-                expr.subexp().accept(*this);
-                os_ << ")";
+                std::cerr << "Error: tan not supported by qiskit\n";
                 break;
             case ast::UnaryOp::Ln:
-                os_ << "Log(";
-                expr.subexp().accept(*this);
-                os_ << ")";
-                break;
-            case ast::UnaryOp::Sqrt:
-                os_ << "Sqrt(";
-                expr.subexp().accept(*this);
-                os_ << ")";
-                break;
-            case ast::UnaryOp::Exp:
-                os_ << "ExpD(";
-                expr.subexp().accept(*this);
-                os_ << ")";
+                std::cerr << "Error: ln not supported by qiskit\n";
                 break;
             default:
+                os_ << expr.op();
+                os_ << "(";
+                expr.subexp().accept(*this);
+                os_ << ")";
                 break;
         }
     }
 
-    void visit(ast::PiExpr&) { os_ << "PI()"; }
-
-    void visit(ast::IntExpr& expr) { os_ << expr.value() << ".0"; }
-
-    void visit(ast::RealExpr& expr) {
-        auto tmp = expr.value();
-
-        os_ << tmp;
-        if (tmp - floor(tmp) == 0) {
-            os_ << ".0";
-        }
+    void visit(ast::PiExpr&) { 
+        //os_ << "pi"; 
     }
 
-    void visit(ast::VarExpr& expr) { os_ << expr.var(); }
+    void visit(ast::IntExpr& expr) { 
+        //os_ << expr.value(); 
+    }
+
+    void visit(ast::RealExpr& expr) { 
+        //os_ << expr.value(); 
+    }
+
+    void visit(ast::VarExpr& expr) { 
+        //os_ << "%" << expr.var(); 
+    }
 
     // Statements
+    // measurament OK
     void visit(ast::MeasureStmt& stmt) {
-        // Arrays are immutable in Q#
-        os_ << prefix_ << "set " << stmt.c_arg().var();
-        os_ << " w/= " << *(stmt.c_arg().offset());
-        os_ << " <- M(" << stmt.q_arg() << ");\n";
+        os_ << "measure q[";
+        stmt.q_arg().accept(*this);
+        os_ << "] --> ";
+        stmt.c_arg().accept(*this);
+        os_ << "\n";
     }
 
+    // clear qbit/cbit
     void visit(ast::ResetStmt& stmt) {
-        os_ << prefix_ << "Reset(" << stmt.arg() << ");\n";
+        os_ << "clear ";
+        stmt.arg().accept(*this);
+        os_ << "(" << max_cbit_ << ")\n";
     }
 
     void visit(ast::IfStmt& stmt) {
-        os_ << prefix_ << "if (ResultArrayAsInt(" << stmt.var();
-        os_ << ") == " << stmt.cond() << ") {\n";
+        auto [r, length] = globals_[stmt.var()];
 
-        prefix_ += "    ";
+        // Checking each bit separately avoids allocating
+        // a garbage cbit for the result of an EQ. That
+        // and the EQ instruction is not well-documented
+        auto tmp = stmt.cond();
+        for (auto i = 0; i < length; i++) {
+            if (tmp % 2 == 1) {
+                os_ << "JUMP-UNLESS";
+            } else {
+                os_ << "JUMP-WHEN";
+            }
+
+            os_ << " @end" << stmt.uid() << " " << stmt.var() << "[" << r
+                << "]\n";
+        }
+
         stmt.then().accept(*this);
-        prefix_.resize(prefix_.size() - 4);
 
-        os_ << prefix_ << "}\n";
+        os_ << "LABEL @end" << stmt.uid() << "\n";
     }
 
     // Gates
     void visit(ast::UGate& gate) {
-        os_ << prefix_ << "U(";
+        if (circuit_local_) {
+            os_ << "    ";
+        }
+
+        os_ << "U(";
         gate.theta().accept(*this);
         os_ << ", ";
         gate.phi().accept(*this);
         os_ << ", ";
         gate.lambda().accept(*this);
-        os_ << ", ";
+        os_ << ")";
+
+        os_ << " ";
         gate.arg().accept(*this);
-        os_ << ");\n";
+        os_ << "\n";
     }
 
     void visit(ast::CNOTGate& gate) {
-        os_ << prefix_ << "CNOT(";
+        if (circuit_local_) {
+            os_ << "    ";
+        }
+
+        os_ << "CNOT ";
         gate.ctrl().accept(*this);
-        os_ << ", ";
+        os_ << " ";
         gate.tgt().accept(*this);
-        os_ << ");\n";
+        os_ << "\n";
     }
 
     void visit(ast::BarrierGate&) {}
 
     void visit(ast::DeclaredGate& gate) {
-        os_ << prefix_;
+        if (circuit_local_) {
+            os_ << "    ";
+            os_ << "fluss0";
+        }
 
+        os_ << "fluss1";
+        // here is where I need to work
         if (auto it = qasmstd_to_qiskit.find(gate.name());
             it != qasmstd_to_qiskit.end()) {
-            os_ << it->second << "(";
+            os_ << it->second;
         } else {
-            os_ << gate.name() << "(";
+            os_ << gate.name();
         }
 
-        for (int i = 0; i < (gate.num_cargs() + gate.num_qargs()); i++) {
-            if (i != 0) {
-                os_ << ", ";
-            }
-
-            if (i < gate.num_cargs()) {
+        // this could maybe be related with classical arguments or stuff like that
+        if (gate.num_cargs() > 0) {
+            os_ << "fluss2";
+            os_ << "(";
+            for (int i = 0; i < gate.num_cargs(); i++) {
+                if (i != 0) {
+                    os_ << ", ";
+                }
                 gate.carg(i).accept(*this);
-            } else {
-                gate.qarg(i - gate.num_cargs()).accept(*this);
             }
+            os_ << ")";
         }
-        os_ << ");\n";
+
+        for (int i = 0; i < gate.num_qargs(); i++) {
+            os_ << " ";
+            gate.qarg(i).accept(*this);
+        }
+
+        os_ << "\n";
     }
 
     // Declarations
     void visit(ast::GateDecl& decl) {
-        if (decl.is_opaque()) {
-            throw std::logic_error("Opaque declarations not supported");
-        }
-
-        if (qasmstd_to_qiskit.find(decl.id()) == qasmstd_to_qiskit.end()) {
-
-            // Declaration header
-            os_ << prefix_ << "operation " << decl.id() << "(";
-            for (int i = 0;
-                 i < (decl.c_params().size() + decl.q_params().size()); i++) {
-                if (i != 0) {
-                    os_ << ", ";
-                }
-
-                if (i < decl.c_params().size()) {
-                    os_ << decl.c_params()[i] << " : Double";
-                } else {
-                    os_ << decl.q_params()[i - decl.c_params().size()]
-                        << " : Qubit";
-                }
-            }
-            os_ << ") : Unit {\n";
-
-            // Declaration body
-            prefix_ += "    ";
-            decl.foreach_stmt([this](auto& stmt) { stmt.accept(*this); });
-
-            // Reset all local ancillas
-            for (auto it = locals_.rbegin(); it != locals_.rend(); it++) {
-                os_ << prefix_ << "ResetAll(" << *it << ");\n";
-                prefix_.resize(prefix_.size() - 4);
-                os_ << prefix_ << "}\n";
-            }
-            locals_.clear();
-
-            prefix_.resize(prefix_.size() - 4);
-            os_ << prefix_ << "}\n\n";
-        }
+        
     }
 
     void visit(ast::OracleDecl& decl) {
         throw std::logic_error(
-            "Q# has no support for oracle declarations via logic files");
+            "Qiskit instruction set has no support for oracle declarations");
     }
 
     void visit(ast::RegisterDecl& decl) {
         if (decl.is_quantum()) {
-            os_ << prefix_ << "using (" << decl.id() << " = Qubit["
-                << decl.size() << "]) {";
-            prefix_ += "    ";
-            locals_.push_back(decl.id());
+            globals_[decl.id()] = std::make_pair(max_qbit_, decl.size());
+            max_qbit_ += decl.size();
         } else {
-            os_ << prefix_ << "mutable " << decl.id() << " = new Result["
-                << decl.size() << "];";
+            os_ << "DECLARE " << decl.id() << " BIT[" << decl.size() << "]\n";
         }
-        os_ << "\n";
     }
 
     void visit(ast::AncillaDecl& decl) {
-        os_ << prefix_ << "using (" << decl.id() << " = Qubit[" << decl.size()
-            << "]) {\n";
-        prefix_ += "    ";
-        locals_.push_back(decl.id());
+        throw std::logic_error(
+            "Qiskit instruction set has no support for local ancillas");
     }
 
     // Program
     void visit(ast::Program& prog) {
-        os_ << prefix_ << "namespace " << config_.ns << " {\n";
-        prefix_ += "    ";
+            os_ << "OPENQASM 2.0\n";
+            os_ << 'include "qelib1.inc"\n';
+            os_ << "gate rzx(param0) q0,q1 { h q1; cx q0,q1; rz(param0) q1; cx q0,q1; h q1; }\n";
+            os_ << "gate ecr q0,q1 { rzx(pi/4) q0,q1; x q0; rzx(-pi/4) q0,q1; }\n";
+            os_ << "q[127]\n";
 
-        os_ << prefix_ << "open Microsoft.Quantum.Intrinsic;\n";
-        os_ << prefix_ << "open Microsoft.Quantum.Convert;\n";
-        os_ << prefix_ << "open Microsoft.Quantum.Canon;\n";
-        os_ << prefix_ << "open Microsoft.Quantum.Math;\n\n";
-
-        // QASM U gate
-        os_ << prefix_
-            << "operation U(theta : Double, phi : Double, lambda : Double, q : "
-               "Qubit) : Unit {\n";
-        prefix_ += "    ";
-        os_ << prefix_ << "Rz(lambda, q);\n";
-        os_ << prefix_ << "Ry(theta, q);\n";
-        os_ << prefix_ << "Rz(phi, q);\n";
-        prefix_.resize(prefix_.size() - 4);
-        os_ << prefix_ << "}\n\n";
-
-        // Gate declarations
-        prog.foreach_stmt([this](auto& stmt) {
-            if (typeid(stmt) == typeid(ast::GateDecl)) {
-                stmt.accept(*this);
-            }
-        });
-
+        
         // Program body
-        os_ << prefix_ << "operation " << config_.opname << "() : Unit {\n";
-        prefix_ += "    ";
-        prog.foreach_stmt([this](auto& stmt) {
-            if (typeid(stmt) != typeid(ast::GateDecl)) {
-                stmt.accept(*this);
-            }
-        });
-
-        // Reset all qubits
-        os_ << "\n";
-        for (auto it = locals_.rbegin(); it != locals_.rend(); it++) {
-            os_ << prefix_ << "ResetAll(" << *it << ");\n";
-            prefix_.resize(prefix_.size() - 4);
-            os_ << prefix_ << "}\n";
-        }
-        locals_.clear();
-
-        // Close operation
-        prefix_.resize(prefix_.size() - 4);
-        os_ << prefix_ << "}\n";
-
-        // Close namespace
-        prefix_.resize(prefix_.size() - 4);
-        os_ << prefix_ << "}\n";
+        prog.foreach_stmt([this](auto& stmt) { stmt.accept(*this); });
     }
 
   private:
     std::ostream& os_;
     config config_;
 
-    std::string prefix_ = "";
-    std::list<std::string> locals_{};
+    bool circuit_local_ = false;
     bool ambiguous_ = false;
+    int max_qbit_ = 0;
+    int max_cbit_ = 0;
+    std::unordered_map<ast::symbol, std::pair<int, int>> globals_{};
 };
 
-/** \brief Writes an AST in Q# format to stdout */
+/** \brief Writes an AST in Qiskit format to stdout */
 void output_qiskit(ast::Program& prog) {
     QiskitOutputter outputter(std::cout);
     outputter.run(prog);
 }
 
-/** \brief Writes an AST in Q# format to a given output stream */
+/** \brief Writes an AST in Qiskit format to a given output stream */
 void write_qiskit(ast::Program& prog, std::string fname) {
     std::ofstream ofs;
     ofs.open(fname);
