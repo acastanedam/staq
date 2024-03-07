@@ -3,7 +3,7 @@
 
 #include <iomanip>
 #include <typeinfo>
-
+#include <string>
 #include "qasmtools/ast/ast.hpp"
 
 namespace staq {
@@ -11,14 +11,14 @@ namespace output {
 
 namespace ast = qasmtools::ast;
 
+struct translation{
+    std::string rz;
+    std::string sx;
+};
+
 /** \brief Equivalent QISKIT standard gates for qasm standard gates */
-std::unordered_map<std::string, std::string> qasmstd_to_qiskit{
-    {"id", "ID"},
-    {"x", "X"},
-    {"ecr", "ECR"},
-    {"u1", "RZ"},
-    {"sx", "SX"},
-    {"h", " PROVA "}
+std::unordered_map<std::string, translation> qasmstd_to_qiskit{
+    {"h", {"rz(pi/2)", "sx"}}
 };
 
 /**
@@ -141,9 +141,11 @@ class QiskitOutputter final : public ast::Visitor {
 
     // clear qbit/cbit
     void visit(ast::ResetStmt& stmt) {
-        os_ << "clear ";
+        os_ << "reset ";
+        // old param in the print: max_cbit_
+        os_ << "q["; 
         stmt.arg().accept(*this);
-        os_ << "(" << max_cbit_ << ")\n";
+        os_ << "]\n";
     }
 
     void visit(ast::IfStmt& stmt) {
@@ -202,22 +204,43 @@ class QiskitOutputter final : public ast::Visitor {
 
     void visit(ast::BarrierGate&) {}
 
+
+    // most of the work is basically inside here
     void visit(ast::DeclaredGate& gate) {
         if (circuit_local_) {
-            os_ << "    ";
-            os_ << "fluss0";
+            os_ << " ";
         }
 
-        os_ << "fluss1";
-        // here is where I need to work
+        // this is where I need to map somehow multiple entries for
+        // one single key
         if (auto it = qasmstd_to_qiskit.find(gate.name());
             it != qasmstd_to_qiskit.end()) {
-            os_ << it->second;
+            translation g = it->second;
+            if (gate.name() == "h"){
+                for (int i = 0; i < gate.num_qargs(); i++) {
+                os_ << "\n";
+
+                os_ << g.rz << " q[" ;
+                gate.qarg(i).accept(*this); 
+                os_ << "]"<<"\n";
+                
+                os_ << g.sx << " q[";
+                gate.qarg(i).accept(*this); 
+                os_ << "]"<<"\n";
+                
+                os_ << g.rz << " q["; 
+                gate.qarg(i).accept(*this);
+                os_ << "]"<<"\n";
+                
+                }
+
+            }
+        
         } else {
+            // qui dentro ci finisco per il cx
             os_ << gate.name();
         }
 
-        // this could maybe be related with classical arguments or stuff like that
         if (gate.num_cargs() > 0) {
             os_ << "fluss2";
             os_ << "(";
@@ -230,10 +253,12 @@ class QiskitOutputter final : public ast::Visitor {
             os_ << ")";
         }
 
-        for (int i = 0; i < gate.num_qargs(); i++) {
-            os_ << " ";
-            gate.qarg(i).accept(*this);
-        }
+        // this is the place for gate arguments
+        // for (int i = 0; i < gate.num_qargs(); i++) {
+        //     os_ << " q[";
+        //     gate.qarg(i).accept(*this);
+        //     os_ << "] ";
+        // }
 
         os_ << "\n";
     }
@@ -253,7 +278,7 @@ class QiskitOutputter final : public ast::Visitor {
             globals_[decl.id()] = std::make_pair(max_qbit_, decl.size());
             max_qbit_ += decl.size();
         } else {
-            os_ << "DECLARE " << decl.id() << " BIT[" << decl.size() << "]\n";
+            os_ << decl.id() << "reg c[" << decl.size() << "]\n";
         }
     }
 
@@ -264,11 +289,12 @@ class QiskitOutputter final : public ast::Visitor {
 
     // Program
     void visit(ast::Program& prog) {
+            // sort of standard configuration in ibm_kyoto
             os_ << "OPENQASM 2.0\n";
             os_ << 'include "qelib1.inc"\n';
             os_ << "gate rzx(param0) q0,q1 { h q1; cx q0,q1; rz(param0) q1; cx q0,q1; h q1; }\n";
             os_ << "gate ecr q0,q1 { rzx(pi/4) q0,q1; x q0; rzx(-pi/4) q0,q1; }\n";
-            os_ << "q[127]\n";
+            os_ << "qreg q[127]\n";
 
         
         // Program body
