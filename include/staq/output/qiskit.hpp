@@ -12,13 +12,21 @@ namespace output {
 namespace ast = qasmtools::ast;
 
 struct translation{
+    // hadamard gate translation
     std::string rz;
     std::string sx;
+    
+    // cx not gate translation
+    std::string ecr;
+    std::string rz_neg;
+    std::string rz_neg_half;
+    std::string rz_half;
 };
 
 /** \brief Equivalent QISKIT standard gates for qasm standard gates */
 std::unordered_map<std::string, translation> qasmstd_to_qiskit{
-    {"h", {"rz(pi/2)", "sx"}}
+    {"h", {"rz(pi/2)", "sx", "", "", "", ""}},
+    {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)"}}
 };
 
 /**
@@ -134,8 +142,9 @@ class QiskitOutputter final : public ast::Visitor {
     void visit(ast::MeasureStmt& stmt) {
         os_ << "measure q[";
         stmt.q_arg().accept(*this);
-        os_ << "] --> ";
+        os_ << "] -> ";
         stmt.c_arg().accept(*this);
+        os_ << ";";
         os_ << "\n";
     }
 
@@ -145,7 +154,7 @@ class QiskitOutputter final : public ast::Visitor {
         // old param in the print: max_cbit_
         os_ << "q["; 
         stmt.arg().accept(*this);
-        os_ << "]\n";
+        os_ << "];\n";
     }
 
     void visit(ast::IfStmt& stmt) {
@@ -204,6 +213,75 @@ class QiskitOutputter final : public ast::Visitor {
 
     void visit(ast::BarrierGate&) {}
 
+    // Gate Functions
+    void RZGate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        //os_ << "Sono dentro la funzione RZ\n";
+        os_ << g.rz << " q[" ;
+        gate.qarg(i).accept(*this); 
+        os_ << "];"<<"\n";
+    }
+
+    void SXGate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.sx << " q[";
+        gate.qarg(i).accept(*this); 
+        os_ << "];"<<"\n";
+    }
+
+    void RXNegHalfGate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_neg_half << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    void RXNegGate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_neg << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    void RXHalfGate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_half << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    void ECRGate(translation g, ast::DeclaredGate& gate, int i, int j)
+    {
+        os_ << g.ecr << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "], q[";
+        gate.qarg(j).accept(*this);
+        os_ << "];\n";
+    }
+
+    void CXTranslation(translation g, ast::DeclaredGate& gate)
+    {
+        SXGate(g, gate, 0);
+        RXNegHalfGate(g, gate, 0);
+        RXNegHalfGate(g, gate, 1);
+        SXGate(g, gate, 1);
+        RXNegGate(g, gate, 1);
+        RXNegGate(g, gate, 1);
+        ECRGate(g, gate, 1, 0);
+        RXNegHalfGate(g, gate, 0);
+        SXGate(g, gate, 0);
+        RXHalfGate(g, gate, 1);
+        SXGate(g, gate, 1);
+        RXHalfGate(g, gate, 1);
+    }
+
+    void HTranslation(translation g, ast::DeclaredGate& gate, int i)
+    {
+        RZGate(g, gate, i);
+        SXGate(g, gate, i);
+        RZGate(g, gate, i);
+    }
+
 
     // most of the work is basically inside here
     void visit(ast::DeclaredGate& gate) {
@@ -214,30 +292,25 @@ class QiskitOutputter final : public ast::Visitor {
         // this is where I need to map somehow multiple entries for
         // one single key
         if (auto it = qasmstd_to_qiskit.find(gate.name());
-            it != qasmstd_to_qiskit.end()) {
+                    it != qasmstd_to_qiskit.end()) {
             translation g = it->second;
+            
+            // traslation for hadamard
             if (gate.name() == "h"){
                 for (int i = 0; i < gate.num_qargs(); i++) {
                 os_ << "\n";
-
-                os_ << g.rz << " q[" ;
-                gate.qarg(i).accept(*this); 
-                os_ << "]"<<"\n";
-                
-                os_ << g.sx << " q[";
-                gate.qarg(i).accept(*this); 
-                os_ << "]"<<"\n";
-                
-                os_ << g.rz << " q["; 
-                gate.qarg(i).accept(*this);
-                os_ << "]"<<"\n";
-                
+                HTranslation(g, gate, i);        
                 }
-
             }
-        
+            
+            if (gate.name() == "cx") {
+                os_ << "\n";
+                CXTranslation(g, gate);
+            }
+ 
         } else {
             // qui dentro ci finisco per il cx
+            os_ << "\n";
             os_ << gate.name();
         }
 
@@ -253,15 +326,17 @@ class QiskitOutputter final : public ast::Visitor {
             os_ << ")";
         }
 
-        // this is the place for gate arguments
-        // for (int i = 0; i < gate.num_qargs(); i++) {
-        //     os_ << " q[";
-        //     gate.qarg(i).accept(*this);
-        //     os_ << "] ";
-        // }
-
+        // this basically print everything that is not meant
+        // to be translated somehow
+        for (int i = 0; i < gate.num_qargs(); i++) {
+            os_ << " q[";
+            gate.qarg(i).accept(*this);
+            os_ << "] ";
+        }
+        
         os_ << "\n";
     }
+
 
     // Declarations
     void visit(ast::GateDecl& decl) {
@@ -273,12 +348,13 @@ class QiskitOutputter final : public ast::Visitor {
             "Qiskit instruction set has no support for oracle declarations");
     }
 
+    // I use it just for classical registers
     void visit(ast::RegisterDecl& decl) {
         if (decl.is_quantum()) {
             globals_[decl.id()] = std::make_pair(max_qbit_, decl.size());
             max_qbit_ += decl.size();
         } else {
-            os_ << decl.id() << "reg c[" << decl.size() << "]\n";
+            os_ << decl.id() << "reg c[" << decl.size() << "];\n";
         }
     }
 
@@ -290,11 +366,11 @@ class QiskitOutputter final : public ast::Visitor {
     // Program
     void visit(ast::Program& prog) {
             // sort of standard configuration in ibm_kyoto
-            os_ << "OPENQASM 2.0\n";
-            os_ << 'include "qelib1.inc"\n';
+            os_ << "OPENQASM 2.0;\n";
+            os_ << "include \"qelib1.inc\";\n";
             os_ << "gate rzx(param0) q0,q1 { h q1; cx q0,q1; rz(param0) q1; cx q0,q1; h q1; }\n";
             os_ << "gate ecr q0,q1 { rzx(pi/4) q0,q1; x q0; rzx(-pi/4) q0,q1; }\n";
-            os_ << "qreg q[127]\n";
+            os_ << "qreg q[127];\n\n";
 
         
         // Program body
