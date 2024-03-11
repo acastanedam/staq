@@ -35,7 +35,7 @@ struct translation{
 };
 
 /** \brief Equivalent QISKIT standard gates for qasm standard gates */
-std::unordered_map<std::string, translation> qasmstd_to_qiskit{
+std::unordered_map<std::string, translation> qasmstd_to_ibmq_kyoto{
     {"h", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", ""}},
     {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", ""}},
     {"x", {"", "", "", "", "", "", "x", "", "", "", ""}},
@@ -51,7 +51,7 @@ class QiskitOutputter final : public ast::Visitor {
   public:
     struct config {
         bool std_includes =
-            false; // stdgates.qiskit is not supported natively by qiskitc
+            false; // stdgates.ibmq_kyoto is not supported natively by ibmq_kyotoc
     };
 
     QiskitOutputter(std::ostream& os) : Visitor(), os_(os) {}
@@ -121,10 +121,10 @@ class QiskitOutputter final : public ast::Visitor {
                 break;
             }
             case ast::UnaryOp::Tan:
-                std::cerr << "Error: tan not supported by qiskit\n";
+                std::cerr << "Error: tan not supported by ibmq_kyoto\n";
                 break;
             case ast::UnaryOp::Ln:
-                std::cerr << "Error: ln not supported by qiskit\n";
+                std::cerr << "Error: ln not supported by ibmq_kyoto\n";
                 break;
             default:
                 os_ << expr.op();
@@ -444,8 +444,8 @@ class QiskitOutputter final : public ast::Visitor {
 
         // this is where I need to map somehow multiple entries for
         // one single key
-        if (auto it = qasmstd_to_qiskit.find(gate.name());
-                    it != qasmstd_to_qiskit.end()) {
+        if (auto it = qasmstd_to_ibmq_kyoto.find(gate.name());
+                    it != qasmstd_to_ibmq_kyoto.end()) {
             translation g = it->second;
             
             // traslation for hadamard
@@ -556,13 +556,13 @@ class QiskitOutputter final : public ast::Visitor {
 };
 
 /** \brief Writes an AST in Qiskit format to stdout */
-void output_qiskit(ast::Program& prog) {
+void output_ibmq_kyoto(ast::Program& prog) {
     QiskitOutputter outputter(std::cout);
     outputter.run(prog);
 }
 
 /** \brief Writes an AST in Qiskit format to a given output stream */
-void write_qiskit(ast::Program& prog, std::string fname) {
+void write_ibmq_kyoto(ast::Program& prog, std::string fname) {
     std::ofstream ofs;
     ofs.open(fname);
 
