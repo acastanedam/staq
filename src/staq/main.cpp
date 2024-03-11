@@ -52,7 +52,7 @@
 
 #include "staq/output/cirq.hpp"
 #include "staq/output/projectq.hpp"
-#include "staq/output/qiskit.hpp"
+#include "staq/output/ibmq_kyoto.hpp"
 #include "staq/output/qsharp.hpp"
 #include "staq/output/quil.hpp"
 
@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
                    "Output filename. Otherwise prints to stdout");
     app.add_option("-f,--format", format, "Output format. Default=" + format)
         ->check(CLI::IsMember(
-            {"qasm", "quil", "projectq", "qiskit", "qsharp", "cirq", "resources"}));
+            {"qasm", "quil", "projectq", "ibmq_kyoto", "qsharp", "cirq", "resources"}));
     app.add_option("-l,--layout", layout_alg,
                    "Initial device layout algorithm. Default=" + layout_alg)
         ->check(CLI::IsMember({"linear", "eager", "bestfit"}));
@@ -339,11 +339,11 @@ int main(int argc, char** argv) {
         } else {
             output::write_projectq(*prog, ofile);
         }
-    } else if (format == "qiskit"){
+    } else if (format == "ibmq_kyoto"){
         if (ofile.empty()) {
-            output::output_qiskit(*prog);
+            output::output_ibmq_kyoto(*prog);
         } else {
-            output::write_qiskit(*prog, ofile);
+            output::write_ibmq_kyoto(*prog, ofile);
         }
     } else if (format == "qsharp") {
         if (ofile.empty()) {
