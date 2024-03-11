@@ -2,7 +2,7 @@
 
 #include "qasmtools/parser/parser.hpp"
 
-#include "staq/output/qiskit.hpp"
+#include "staq/output/ibmq_kyoto.hpp"
 #include "staq/transformations/desugar.hpp"
 
 int main(int argc, char** argv) {
@@ -20,9 +20,9 @@ int main(int argc, char** argv) {
     if (program) {
         transformations::desugar(*program);
         if (filename.empty()) {
-            output::output_qiskit(*program);
+            output::output_ibmq_kyoto(*program);
         } else {
-            output::write_qiskit(*program, filename);
+            output::write_ibmq_kyoto(*program, filename);
         }
     } else {
         std::cerr << "Parsing failed\n";
