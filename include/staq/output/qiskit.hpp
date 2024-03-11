@@ -16,17 +16,31 @@ struct translation{
     std::string rz;
     std::string sx;
     
-    // cx not gate translation
+    // cx gate translation
     std::string ecr;
     std::string rz_neg;
     std::string rz_neg_half;
     std::string rz_half;
+
+    // x gate translation
+    std::string x;
+
+    // ccx gate translation
+    std::string rz_neg_3pifract4;
+    std::string rz_3pifract4;
+    std::string rz_pifract4;
+
+    // cu1 gate translation
+    std::string rz_negpifract4;
 };
 
 /** \brief Equivalent QISKIT standard gates for qasm standard gates */
 std::unordered_map<std::string, translation> qasmstd_to_qiskit{
-    {"h", {"rz(pi/2)", "sx", "", "", "", ""}},
-    {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)"}}
+    {"h", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", ""}},
+    {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", ""}},
+    {"x", {"", "", "", "", "", "", "x", "", "", "", ""}},
+    {"ccx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", ""}},
+    {"cu1", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "rz(-pi/4)"}}
 };
 
 /**
@@ -229,21 +243,21 @@ class QiskitOutputter final : public ast::Visitor {
         os_ << "];"<<"\n";
     }
 
-    void RXNegHalfGate(translation g, ast::DeclaredGate& gate, int i)
+    void RZNegHalfGate(translation g, ast::DeclaredGate& gate, int i)
     {
         os_ << g.rz_neg_half << " q[";
         gate.qarg(i).accept(*this);
         os_ << "];\n";
     }
 
-    void RXNegGate(translation g, ast::DeclaredGate& gate, int i)
+    void RZNegGate(translation g, ast::DeclaredGate& gate, int i)
     {
         os_ << g.rz_neg << " q[";
         gate.qarg(i).accept(*this);
         os_ << "];\n";
     }
 
-    void RXHalfGate(translation g, ast::DeclaredGate& gate, int i)
+    void RZHalfGate(translation g, ast::DeclaredGate& gate, int i)
     {
         os_ << g.rz_half << " q[";
         gate.qarg(i).accept(*this);
@@ -254,25 +268,60 @@ class QiskitOutputter final : public ast::Visitor {
     {
         os_ << g.ecr << " q[";
         gate.qarg(i).accept(*this);
-        os_ << "], q[";
+        os_ << "],q[";
         gate.qarg(j).accept(*this);
+        os_ << "];\n";
+    }
+
+    void RZNegpifract4(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_negpifract4 << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    void XGate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.x << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    void RZNeg3pifract4Gate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_neg_3pifract4 << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+    
+    void RZ3pifract4Gate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_3pifract4 << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    void RZpifract4Gate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_pifract4 << " q[";
+        gate.qarg(i).accept(*this);
         os_ << "];\n";
     }
 
     void CXTranslation(translation g, ast::DeclaredGate& gate)
     {
         SXGate(g, gate, 0);
-        RXNegHalfGate(g, gate, 0);
-        RXNegHalfGate(g, gate, 1);
+        RZNegHalfGate(g, gate, 0);
+        RZNegHalfGate(g, gate, 1);
         SXGate(g, gate, 1);
-        RXNegGate(g, gate, 1);
-        RXNegGate(g, gate, 1);
+        RZNegGate(g, gate, 1);
+        RZNegGate(g, gate, 1);
         ECRGate(g, gate, 1, 0);
-        RXNegHalfGate(g, gate, 0);
+        RZNegHalfGate(g, gate, 0);
         SXGate(g, gate, 0);
-        RXHalfGate(g, gate, 1);
+        RZHalfGate(g, gate, 1);
         SXGate(g, gate, 1);
-        RXHalfGate(g, gate, 1);
+        RZHalfGate(g, gate, 1);
     }
 
     void HTranslation(translation g, ast::DeclaredGate& gate, int i)
@@ -282,6 +331,110 @@ class QiskitOutputter final : public ast::Visitor {
         RZGate(g, gate, i);
     }
 
+    void CCXTranslation(translation g, ast::DeclaredGate& gate)
+    {
+        // I kept eveything this way so I can read better the code
+        // and check to have insert everything correctly
+
+        RZNegHalfGate(g, gate, 0);
+
+        RZNegHalfGate(g, gate, 1);
+        SXGate(g, gate, 2);
+        RZHalfGate(g, gate, 2);
+
+        ECRGate(g, gate, 0, 2);
+        XGate(g, gate, 0);
+        RZNegHalfGate(g, gate, 0);
+
+        RZ3pifract4Gate(g, gate, 2);
+        SXGate(g, gate, 2);
+        RZNegGate(g, gate, 2);
+
+        ECRGate(g, gate, 1, 2);
+        XGate(g, gate, 1);
+        RZNegHalfGate(g, gate, 1);
+
+        RZNeg3pifract4Gate(g, gate, 2);
+        SXGate(g, gate, 2);
+        RZNegGate(g, gate, 2);
+
+        ECRGate(g, gate, 0, 2);
+        RZNeg3pifract4Gate(g, gate, 0);
+        SXGate(g, gate, 0);
+
+        RZpifract4Gate(g, gate, 2);
+        SXGate(g, gate, 2);
+        RZNegGate(g, gate, 2);
+
+        ECRGate(g, gate, 1, 2);
+        RZNegGate(g, gate, 1);
+        XGate(g, gate, 1);
+
+        RZpifract4Gate(g, gate, 2);
+        SXGate(g, gate, 2);
+        RZHalfGate(g, gate, 2);
+
+        ECRGate(g, gate, 1, 2);
+        RZNegHalfGate(g, gate, 1);
+        SXGate(g, gate, 1);
+        
+        SXGate(g, gate, 2);
+        RZNegHalfGate(g, gate, 2);
+        ECRGate(g, gate, 1, 2);
+        
+        RZHalfGate(g, gate, 1);
+        SXGate(g, gate, 1);
+        RZNegGate(g, gate, 2);
+
+        SXGate(g, gate, 2);
+        RZHalfGate(g, gate, 2);
+        ECRGate(g, gate, 1, 2);
+
+        XGate(g, gate, 1);
+        RZHalfGate(g, gate, 2);
+        SXGate(g, gate, 2);
+
+        RZNegHalfGate(g, gate, 2);
+        ECRGate(g, gate, 0, 2);
+        RZNegHalfGate(g, gate, 0);
+
+        SXGate(g, gate, 0);
+        RZpifract4Gate(g, gate, 0);
+        SXGate(g, gate, 0);
+
+        RZHalfGate(g, gate, 2);
+        SXGate(g, gate, 2);
+        RZNeg3pifract4Gate(g, gate, 2);
+        
+        SXGate(g, gate, 2);
+        RZHalfGate(g, gate, 2);
+        ECRGate(g, gate, 0, 2);
+
+        RZHalfGate(g, gate, 0);
+        SXGate(g, gate, 0);
+        RZHalfGate(g, gate, 0);
+
+        RZNegHalfGate(g, gate, 2);
+        SXGate(g, gate, 2);
+        RZHalfGate(g, gate, 2);
+    }
+
+    void CU1Translation(translation g, ast::DeclaredGate& gate)
+    {
+        RZNegGate(g, gate, 0);
+        SXGate(g, gate, 0);
+        RZNegGate(g, gate, 0);
+        RZNegpifract4(g, gate, 0);
+        SXGate(g, gate, 0);
+        RZGate(g, gate, 0);
+        XGate(g, gate, 0);
+        RZNegGate(g, gate, 0);
+        XGate(g, gate, 1);
+        RZNegHalfGate(g, gate, 1);
+        ECRGate(g, gate, 1, 0);
+        RZpifract4Gate(g, gate, 0);
+        XGate(g, gate, 1);
+    }
 
     // most of the work is basically inside here
     void visit(ast::DeclaredGate& gate) {
@@ -307,6 +460,17 @@ class QiskitOutputter final : public ast::Visitor {
                 os_ << "\n";
                 CXTranslation(g, gate);
             }
+
+            if (gate.name() == "ccx") {
+                os_ << "\n";
+                CCXTranslation(g, gate);
+            }
+            
+            if (gate.name() == "cu1") {
+                os_ << "\n";
+                CU1Translation(g, gate);
+            }
+
  
         } else {
             // qui dentro ci finisco per il cx
@@ -314,25 +478,28 @@ class QiskitOutputter final : public ast::Visitor {
             os_ << gate.name();
         }
 
-        if (gate.num_cargs() > 0) {
-            os_ << "fluss2";
-            os_ << "(";
-            for (int i = 0; i < gate.num_cargs(); i++) {
-                if (i != 0) {
-                    os_ << ", ";
-                }
-                gate.carg(i).accept(*this);
-            }
-            os_ << ")";
-        }
+
+        // basically this code was used when you had situation in which
+        // some gate had >= arguments. I handle things differntly, addresing
+        // every possible gates that I can read.
+        // if (gate.num_cargs() > 0) {
+        //     os_ << "(";
+        //     for (int i = 0; i < gate.num_cargs(); i++) {
+        //         if (i != 0) {
+        //             os_ << ", ";
+        //         }
+        //         gate.carg(i).accept(*this);
+        //     }
+        //     os_ << ")";
+        // }
 
         // this basically print everything that is not meant
         // to be translated somehow
-        for (int i = 0; i < gate.num_qargs(); i++) {
-            os_ << " q[";
-            gate.qarg(i).accept(*this);
-            os_ << "] ";
-        }
+        // for (int i = 0; i < gate.num_qargs(); i++) {
+        //     os_ << " q[";
+        //     gate.qarg(i).accept(*this);
+        //     os_ << "] ";
+        // }
         
         os_ << "\n";
     }
