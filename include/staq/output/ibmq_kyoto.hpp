@@ -32,15 +32,19 @@ struct translation{
 
     // cu1 gate translation
     std::string rz_negpifract4;
+
+    // id gate translation
+    std::string id;
 };
 
 /** \brief Equivalent QISKIT standard gates for qasm standard gates */
 std::unordered_map<std::string, translation> qasmstd_to_ibmq_kyoto{
-    {"h", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", ""}},
-    {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", ""}},
-    {"x", {"", "", "", "", "", "", "x", "", "", "", ""}},
-    {"ccx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", ""}},
-    {"cu1", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "rz(-pi/4)"}}
+    {"h", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", "", ""}},
+    {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", "", ""}},
+    {"x", {"", "", "", "", "", "", "x", "", "", "", "", ""}},
+    {"ccx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "", ""}},
+    {"cu1", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "rz(-pi/4)", ""}},
+    {"id", {"", "", "", "", "", "", "", "", "", "", "", "id"}}
 };
 
 /**
@@ -280,6 +284,13 @@ class QiskitOutputter final : public ast::Visitor {
         os_ << "];\n";
     }
 
+    void IDGate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.id << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
     void XGate(translation g, ast::DeclaredGate& gate, int i)
     {
         os_ << g.x << " q[";
@@ -436,6 +447,16 @@ class QiskitOutputter final : public ast::Visitor {
         XGate(g, gate, 1);
     }
 
+    void XTranslation(translation g, ast::DeclaredGate& gate)
+    {
+        XGate(g, gate, 0);
+    }
+
+    void IDTranslation(translation g, ast::DeclaredGate& gate)
+    {
+        IDGate(g, gate, 0);
+    }
+
     // most of the work is basically inside here
     void visit(ast::DeclaredGate& gate) {
         if (circuit_local_) {
@@ -471,7 +492,18 @@ class QiskitOutputter final : public ast::Visitor {
                 CU1Translation(g, gate);
             }
 
- 
+            if (gate.name() == "x"){
+                os_ << "\n";
+                XTranslation(g, gate);
+            }
+
+            if (gate.name() == "id"){
+                os_ << "\n";
+                IDTranslation(g, gate);
+            }
+
+
+
         } else {
             // qui dentro ci finisco per il cx
             os_ << "\n";
