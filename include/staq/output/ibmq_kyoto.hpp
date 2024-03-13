@@ -35,16 +35,31 @@ struct translation{
 
     // id gate translation
     std::string id;
+
+    // u gate translation
+    std::string rz_pifract8;
+    std::string rz_pifract16;
+    std::string rz_negpifract8;
+    std::string rz_negpifract16;
 };
 
 /** \brief Equivalent QISKIT standard gates for qasm standard gates */
 std::unordered_map<std::string, translation> qasmstd_to_ibmq_kyoto{
-    {"h", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", "", ""}},
-    {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", "", ""}},
-    {"x", {"", "", "", "", "", "", "x", "", "", "", "", ""}},
-    {"ccx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "", ""}},
-    {"cu1", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "rz(-pi/4)", ""}},
-    {"id", {"", "", "", "", "", "", "", "", "", "", "", "id"}}
+    {"h", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", "", "", "", "", "", ""}},
+    {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", "", "", "", "", "", ""}},
+    {"CX", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", "", "", "", "", "", ""}},
+    {"x", {"", "", "", "", "", "", "x", "", "", "", "", "", "", "", "", ""}},
+    {"ccx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "", "", "", "", "", ""}},
+    {"cu1", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "x", "rz(-3*pi/4)", "rz(3*pi/4)", "rz(pi/4)", "rz(-pi/4)", "", "", "", "", ""}},
+    {"id", {"", "", "", "", "", "", "", "", "", "", "", "id", "", "", "", ""}},
+    {"U(pi, 0, pi)", {"", "", "", "", "", "", "x", "", "", "", "", "", "", "", "", ""}},
+    {"U(pi/2, 0, pi)", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", "", "", "", "", "", ""}},
+    {"U(0, 0, pi/4)", {"", "", "", "", "", "", "", "", "", "rz(pi/4)", "", "", "", "", "", ""}},
+    {"U(0, 0, -pi/4)", {"", "", "", "", "", "", "", "", "", "rz(-pi/4)", "", "", "", "", "", ""}},
+    {"U(0, 0, pi/8)", {"", "", "", "", "", "", "", "", "", "", "", "", "rz(pi/8)", "", "", ""}},
+    {"U(0, 0, -pi/8)", {"", "", "", "", "", "", "", "", "", "", "", "", "", "rz(-pi/8)", "", ""}},
+    {"U(0, 0, pi/16)", {"", "", "", "", "", "", "", "", "", "", "", "", "", "", "rz(pi/16)", ""}},
+    {"U(0, 0, -pi/16)", {"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "rz(-pi/16)"}}
 };
 
 /**
@@ -93,9 +108,6 @@ class QiskitOutputter final : public ast::Visitor {
         }
     }
 
-    // Expressions
-    // Non so sinceramente che cosa faccia questa roba
-    // perché non ho risultati dal controllo di flusso al momento
     void visit(ast::BExpr& expr) {
         auto tmp = ambiguous_;
         ambiguous_ = true;
@@ -198,43 +210,249 @@ class QiskitOutputter final : public ast::Visitor {
         os_ << "LABEL @end" << stmt.uid() << "\n";
     }
 
+//------------------------------------------------------------
+// 
+// ██    ██  ██████   █████  ████████ ███████ 
+// ██    ██ ██       ██   ██    ██    ██      
+// ██    ██ ██   ███ ███████    ██    █████   
+// ██    ██ ██    ██ ██   ██    ██    ██      
+//  ██████   ██████  ██   ██    ██    ███████ 
+//                                            
+//------------------------------------------------------------                                           
+
     // Gates
     void visit(ast::UGate& gate) {
         if (circuit_local_) {
             os_ << "    ";
         }
 
-        os_ << "U(";
-        gate.theta().accept(*this);
-        os_ << ", ";
-        gate.phi().accept(*this);
-        os_ << ", ";
-        gate.lambda().accept(*this);
-        os_ << ")";
+        // creating the string of the current U operator with all the parameters
+        std::stringstream ss;
+        ss << gate;
+        std::string myString = ss.str();
+        
+        // os_ << myString;
+       
+        if (myString.find("U(pi/2, 0, pi)")){
+            os_ << "\n";
+            Upifract20piTranslationUGate(myString);
+        }
 
-        os_ << " ";
-        gate.arg().accept(*this);
-        os_ << "\n";
+        if (myString.find("U(pi, 0, pi)")){
+            os_ << "\n";
+            Upi0piTranslationUGate(myString);
+        }
+
+        if (myString.find("U(0, 0, pi/4)")){
+            os_ << "\n";
+            U00pifract4UGate(myString);
+        }
+
+        if (myString.find("U(0, 0, -pi/4)")){
+            os_ << "\n";
+            U00negpifract4UGate(myString);
+        }
+
+        if (myString.find("U(0, 0, pi/8)")){
+            os_ << "\n";
+            U00pifract8UGate(myString);
+        }
+
+        if (myString.find("U(0, 0, -pi/8)")){
+            os_ << "\n";
+            U00negpifract8UGate(myString);
+        }
+
+        if (myString.find("U(0, 0, pi/16)")){
+            os_ << "\n";
+            U00pifract16UGate(myString);
+        }
+
+        if (myString.find("U(0, 0, -pi/16)")){
+            os_ << "\n";
+            U00negpifract16UGate(myString);
+        }
     }
 
+    void Upifract20piTranslationUGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(pi/2, 0, pi)\n";
+        os_ << "rz (pi/2) " << qubit;
+        os_ << "sx " << qubit;
+        os_ << "rz (pi/2) " << qubit;
+    }
+
+    void Upi0piTranslationUGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(pi, 0, pi)\n";
+        os_ << "x " << qubit;
+    }
+
+    void U00pifract4UGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(0, 0, pi/4)\n";
+        os_ << "rz(pi/4) " << qubit;
+    }
+
+    void U00negpifract4UGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(0, 0, -pi/4)\n";
+        os_ << "rz(-pi/4) " << qubit;
+    }
+
+    void U00pifract8UGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(0, 0, pi/8)\n";
+        os_ << "rz(pi/8) " << qubit;
+    }
+
+    void U00negpifract8UGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(0, 0, -pi/8)\n";
+        os_ << "rz(-pi/8) " << qubit;
+    }
+
+    void U00pifract16UGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+        
+        os_ << "// U(0, 0, pi/16)\n";
+        os_ << "rz(pi/16) " << qubit;
+    }
+
+    void U00negpifract16UGate(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(0, 0, -pi/16)\n";
+        os_ << "rz(-pi/16) " << qubit;
+    }
+
+//-----------------------------------------
+//  ██████ ███    ██  ██████  ████████ 
+// ██      ████   ██ ██    ██    ██    
+// ██      ██ ██  ██ ██    ██    ██    
+// ██      ██  ██ ██ ██    ██    ██    
+//  ██████ ██   ████  ██████     ██    
+//-----------------------------------------                                
+    // I need to improve this stuff, it is really bad
     void visit(ast::CNOTGate& gate) {
         if (circuit_local_) {
             os_ << "    ";
         }
 
-        os_ << "CNOT ";
-        gate.ctrl().accept(*this);
-        os_ << " ";
-        gate.tgt().accept(*this);
         os_ << "\n";
+
+        os_ << "// CNOT\n";
+
+        os_ << "sx q[";
+        gate.ctrl().accept(*this);
+        os_ << "];\n";
+
+        os_ << "rz(-pi/2) q[";
+        gate.ctrl().accept(*this);
+        os_ << "];\n";
+
+        os_ << "rz(-pi/2) q[";
+        gate.tgt().accept(*this);
+        os_ << "];\n";
+
+        os_ << "sx q[";
+        gate.tgt().accept(*this);
+        os_ << "];\n";
+
+        os_ << "rz(-pi) q[";
+        gate.tgt().accept(*this);
+        os_ << "];\n";
+
+        os_ << "rz(-pi) q[";
+        gate.tgt().accept(*this);
+        os_ << "];\n";
+        
+        os_ << "ecr q[";
+        gate.tgt().accept(*this);
+        os_ << "], q[";
+        gate.ctrl().accept(*this);
+        os_ << "];\n";
+
+        os_ << "rz(-pi/2) q[";
+        gate.ctrl().accept(*this);
+        os_ << "];\n";
+
+        os_ << "rz(pi/2) q[";
+        gate.tgt().accept(*this);
+        os_ << "];\n";
+
+        os_ << "sx q[";
+        gate.tgt().accept(*this);
+        os_ << "];\n";
+
+        os_ << "rz(pi/2) q[";
+        gate.tgt().accept(*this);
+        os_ << "];\n";
+
+        os_ << "\n";
+
     }
 
     void visit(ast::BarrierGate&) {}
 
-    // Gate Functions
+//--------------------------------------------------------------------------------------------------
+//
+//  ██████  ████████ ██   ██ ███████ ██████       ██████   █████  ████████ ███████ ███████ 
+// ██    ██    ██    ██   ██ ██      ██   ██     ██       ██   ██    ██    ██      ██      
+// ██    ██    ██    ███████ █████   ██████      ██   ███ ███████    ██    █████   ███████ 
+// ██    ██    ██    ██   ██ ██      ██   ██     ██    ██ ██   ██    ██    ██           ██ 
+//  ██████     ██    ██   ██ ███████ ██   ██      ██████  ██   ██    ██    ███████ ███████ 
+//                                                                                         
+//-------------------------------------------------------------------------------------------------                                                                                        
+
     void RZGate(translation g, ast::DeclaredGate& gate, int i)
     {
-        //os_ << "Sono dentro la funzione RZ\n";
         os_ << g.rz << " q[" ;
         gate.qarg(i).accept(*this); 
         os_ << "];"<<"\n";
@@ -277,7 +495,7 @@ class QiskitOutputter final : public ast::Visitor {
         os_ << "];\n";
     }
 
-    void RZNegpifract4(translation g, ast::DeclaredGate& gate, int i)
+    void RZNegpifract4Gate(translation g, ast::DeclaredGate& gate, int i)
     {
         os_ << g.rz_negpifract4 << " q[";
         gate.qarg(i).accept(*this);
@@ -319,8 +537,40 @@ class QiskitOutputter final : public ast::Visitor {
         os_ << "];\n";
     }
 
+    void RZpifract8Gate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_pifract8 << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    void RZNegpifract8Gate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_negpifract8 << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+    
+    void RZpifract16Gate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_pifract16 << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+    
+    void RZNegpifract16Gate(translation g, ast::DeclaredGate& gate, int i)
+    {
+        os_ << g.rz_negpifract16 << " q[";
+        gate.qarg(i).accept(*this);
+        os_ << "];\n";
+    }
+
+    // Translation
+
     void CXTranslation(translation g, ast::DeclaredGate& gate)
     {
+        os_ << "sono dentro CX translation\n";
+
         SXGate(g, gate, 0);
         RZNegHalfGate(g, gate, 0);
         RZNegHalfGate(g, gate, 1);
@@ -435,7 +685,7 @@ class QiskitOutputter final : public ast::Visitor {
         RZNegGate(g, gate, 0);
         SXGate(g, gate, 0);
         RZNegGate(g, gate, 0);
-        RZNegpifract4(g, gate, 0);
+        RZNegpifract4Gate(g, gate, 0);
         SXGate(g, gate, 0);
         RZGate(g, gate, 0);
         XGate(g, gate, 0);
@@ -457,20 +707,63 @@ class QiskitOutputter final : public ast::Visitor {
         IDGate(g, gate, 0);
     }
 
-    // most of the work is basically inside here
+    void Upi0piTranslation(translation g, ast::DeclaredGate& gate)
+    {
+        XGate(g, gate, 0);
+    }
+
+    void Upifract20piTranslation(translation g, ast::DeclaredGate& gate)
+    {
+        RZHalfGate(g, gate, 0);
+        SXGate(g, gate, 0);
+        RZHalfGate(g, gate, 0);
+    }
+
+    void U00pifract4(translation g, ast::DeclaredGate& gate)
+    {
+        RZpifract4Gate(g, gate, 0);
+    }
+
+    void U00negpifract4(translation g, ast::DeclaredGate& gate)
+    {
+        RZNegpifract4Gate(g, gate, 0);
+    }
+
+    void U00pifract8(translation g, ast::DeclaredGate& gate)
+    {
+        RZpifract8Gate(g, gate, 0);
+    }
+
+    void U00negpifract8(translation g, ast::DeclaredGate& gate)
+    {
+        RZNegpifract8Gate(g, gate, 0);
+    }
+
+    void U00pifract16(translation g, ast::DeclaredGate& gate)
+    {
+        RZpifract16Gate(g, gate, 0);
+    }
+
+    void U00negpifract16(translation g, ast::DeclaredGate& gate)
+    {
+        RZNegpifract16Gate(g, gate, 0);
+    }
+
+    // Most of the standard translation are here, but because of how staq works,
+    // if you use qasm that has been processed with staq tools what happens is that:
+    // the CNOT and the UGate are handled directly in the section in wich you can read
+    // CNOT e UGATE with a very big font.
     void visit(ast::DeclaredGate& gate) {
         if (circuit_local_) {
             os_ << " ";
         }
 
-        // this is where I need to map somehow multiple entries for
-        // one single key
         if (auto it = qasmstd_to_ibmq_kyoto.find(gate.name());
                     it != qasmstd_to_ibmq_kyoto.end()) {
             translation g = it->second;
             
             // traslation for hadamard
-            if (gate.name() == "h"){
+            if (gate.name() == "h" || gate.name() == "H"){
                 for (int i = 0; i < gate.num_qargs(); i++) {
                 os_ << "\n";
                 HTranslation(g, gate, i);        
@@ -482,30 +775,74 @@ class QiskitOutputter final : public ast::Visitor {
                 CXTranslation(g, gate);
             }
 
-            if (gate.name() == "ccx") {
+            if (gate.name() == "CX") {
+                os_ << "sono dentro CX\n";
+                os_ << "\n";
+                CXTranslation(g, gate);
+            }
+
+            if (gate.name() == "ccx"|| gate.name() == "CCX") {
                 os_ << "\n";
                 CCXTranslation(g, gate);
             }
             
-            if (gate.name() == "cu1") {
+            if (gate.name() == "cu1" || gate.name() == "CU1") {
                 os_ << "\n";
                 CU1Translation(g, gate);
             }
 
-            if (gate.name() == "x"){
+            if (gate.name() == "x" || gate.name() == "X"){
                 os_ << "\n";
                 XTranslation(g, gate);
             }
 
-            if (gate.name() == "id"){
+            if (gate.name() == "id" || gate.name() == "ID"){
                 os_ << "\n";
                 IDTranslation(g, gate);
             }
+            
+            if (gate.name() == "U(pi, 0, pi)"){
+                os_ << "\n";
+                Upi0piTranslation(g, gate);
+            }
 
+            if (gate.name() == "U(pi/2, 0, pi)"){
+                os_ << "\n";
+                Upifract20piTranslation(g, gate);
+            }
+
+            if (gate.name() == "U(0, 0, pi/4)"){
+                os_ << "\n";
+                U00pifract4(g, gate);
+            }
+
+            if (gate.name() == "U(0, 0, -pi/4)"){
+                os_ << "\n";
+                U00negpifract4(g, gate);
+            }
+
+            if (gate.name() == "U(0, 0, pi/8)"){
+                os_ << "\n";
+                U00pifract8(g, gate);
+            }
+
+            if (gate.name() == "U(0, 0, -pi/8)"){
+                os_ << "\n";
+                U00negpifract8(g, gate);
+            }
+
+            if (gate.name() == "U(0, 0, pi/16)"){
+                os_ << "\n";
+                U00pifract16(g, gate);
+            }
+            
+            if (gate.name() == "U(0, 0, -pi/16)"){
+                os_ << "\n";
+                U00negpifract16(g, gate);
+            }
 
 
         } else {
-            // qui dentro ci finisco per il cx
             os_ << "\n";
             os_ << gate.name();
         }
