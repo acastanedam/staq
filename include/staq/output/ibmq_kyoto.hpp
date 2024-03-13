@@ -43,7 +43,7 @@ struct translation{
     std::string rz_negpifract16;
 };
 
-/** \brief Equivalent QISKIT standard gates for qasm standard gates */
+/** \brief Equivalent IBMQ_KYOTO standard gates for qasm standard gates */
 std::unordered_map<std::string, translation> qasmstd_to_ibmq_kyoto{
     {"h", {"rz(pi/2)", "sx", "", "", "", "", "", "", "", "", "", "", "", "", "", ""}},
     {"cx", {"rz(pi/2)", "sx", "ecr", "rz(-pi)", "rz(-pi/2)", "rz(pi/2)", "", "", "", "", "", "", "", "", "", ""}},
@@ -948,4 +948,4 @@ void write_ibmq_kyoto(ast::Program& prog, std::string fname) {
 } /* namespace output */
 } /* namespace staq */
 
-#endif /* OUTPUT_QISKIT_HPP_ */
+#endif /* OUTPUT_IBMQ_KYOTO_HPP_ */
