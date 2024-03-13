@@ -91,13 +91,19 @@ def dump_qasm(backend_to_run):
 
         temp = QuantumCircuit.from_qasm_file(qasm)
         new_circuit = transpile(temp,backend_to_run)
-        q.qasm2.dump(new_circuit, "dump/dump_transpiled_" + str(backend) + "_"+ temp_string[1])
-
+        try:
+            q.qasm2.dump(new_circuit, "dump/dump_transpiled_" + str(backend) + "_"+ temp_string[1])
+        except:
+            q.qasm2.dump(temp, "dump/dump_transpiled_try.qasm") 
+    
     # not transpiled version
     else:
         # print("Inside dump_qasm, transpilation NOT senable:\n")
         temp = QuantumCircuit.from_qasm_file(qasm)
-        q.qasm2.dump(temp, "dump/dump_" + temp_string[1]) 
+        try:
+            q.qasm2.dump(temp, "dump/dump_" + temp_string[1]) 
+        except:
+            q.qasm2.dump(temp, "dump/dump_try.qasm") 
 
 def main():
     q = qasm_to_circuit() # initiliaze qasm code into circuit to run
