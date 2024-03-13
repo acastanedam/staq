@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
 
     std::string filename = "";
 
-    CLI::App app{"QASM to Qiskit transpiler"};
+    CLI::App app{"QASM to IBMQ Kyoto transpiler"};
 
     app.add_option("-o,--output", filename, "Output to a file");
 
