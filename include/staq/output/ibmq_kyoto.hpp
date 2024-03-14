@@ -280,6 +280,26 @@ class QiskitOutputter final : public ast::Visitor {
             os_ << "\n";
             U00negpifract16UGate(myString);
         }
+
+        if (myString.find("U(0, 0, (pi/4) + (pi/2)")){
+            os_ << "\n";
+            U00negpifract2(myString);
+        }
+
+        if (myString.find("U(0, 0, (pi/2) + (pi/2))")){
+            os_ << "\n";
+            U00negpi(myString);
+        }
+
+        if (myString.find("U(0, 0, (pi/2) + pi)")){
+            os_ << "\n";
+            U00negpifract2(myString);
+        }
+
+        if (myString.find("U(0,0,((((pi/2)+(pi/2))+(pi/2))+(pi/2))+(pi/2))")){
+            os_ << "\n";
+            U00pifract2(myString);
+        }
     }
 
     void Upifract20piTranslationUGate(std::string myString)
@@ -380,6 +400,39 @@ class QiskitOutputter final : public ast::Visitor {
         os_ << "rz(-pi/16) " << qubit;
     }
 
+    void U00negpifract2(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(0, 0, (pi/4) + (pi/2))\n";
+        os_ << "rz(-pi/2) " << qubit;
+    }
+
+    void U00negpi(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);
+
+        // prints the result
+        // os_ << "String is: " << qubit;
+
+        os_ << "// U(0, 0, (pi/2) + (pi/2))\n";
+        os_ << "rz(-pi) " << qubit;
+    }
+
+    void U00pifract2(std::string myString)
+    {
+        int pos = myString.find(" ");
+        std::string qubit = myString.substr(pos + 1);   
+        // prints the result
+        // os_ << "String is: " << qubit;   
+        os_ << "// U(0, 0, (pi/2) + pi)\n";
+        os_ << "rz(pi/2) " << qubit;        
+    }
 //-----------------------------------------
 //  ██████ ███    ██  ██████  ████████ 
 // ██      ████   ██ ██    ██    ██    
