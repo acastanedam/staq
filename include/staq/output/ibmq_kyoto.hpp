@@ -219,8 +219,16 @@ class QiskitOutputter final : public ast::Visitor {
 //  ██████   ██████  ██   ██    ██    ███████ 
 //                                            
 //------------------------------------------------------------                                           
+// Translation Table:
+// 1. U(pi, 0, pi) q[0]    ---> x q[0]
+// 2. U(pi/2, 0, pi) q[0]  ---> rz(pi/2) q[0]; sx q[0]; rz(pi/2) q[0]
+// 3. U(0, 0, pi/4) q[0]   ---> rz(pi/4) q[0]
+// 4. U(0, 0, -pi/4) q[0]  ---> rz(-pi/4) q[0] 
+// 5. U(0, 0, pi/8) q[0]   ---> rz(pi/8) q[0] 
+// 6. U(0, 0, -pi/8) q[0]  ---> rz(-pi/8) q[0]
+// 7. U(0, 0, pi/16) q[0]  ---> rz(pi/16) q[0]
+// 8. U(0, 0, -pi/16) q[0] ---> rz(-pi/16) q[0]
 
-    // Gates
     void visit(ast::UGate& gate) {
         if (circuit_local_) {
             os_ << "    ";
